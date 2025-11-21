@@ -1,0 +1,714 @@
+---
+title: "Foundations Of Data Analytics Final Project"
+author: "Katelyn Carlini"
+date: "2025-10-18"
+output: html_notebook
+---
+
+------------------------------------------------------------------------
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(ggplot2)
+```
+
+# Summary
+
+With the purpose of finding how much the 4P’s of marketing affect game ownership on Steam and its importance, 3 main questions were analyzed. The three questions are as follows: what does the Steam market look like, will the genre affect game ownership, and whether price expectations differ between genres.
+
+The data set sourced from Kaggle was first cleaned using the Dplyr and Tidyverse packages. Then, moving to the analysis, knowing that Steam is a site for distributing games rather than a variety of selected games, it was decided that of the 4P’s, place should be the first aspect considered. With the majority of games having very few players compared to the most popular games, the data showed a negative exponential distribution, meaning that to gain notoriety on steam, games need to be marketed which begins with the product. With this information the next step was to narrow the data and look into the top 250 games and then find the genre that appeared the most in that subset, the action genre. Afterwards the focus was shifted to look at steam from a developer looking to distribute a Simulation game.
+
+Having analyzed the results, it was found that game ownership is indeed a good metric for a successful game due to how many aspects show strong correlations to the estimated ownership of the game. With this in mind, analysis shows that simulation games tend to garner less players than the action genre Additionally, games in the Simulation genre are typically priced higher than the most popular games showing that such games typically are more complex than games only in the action genre. Knowing this, the data shows that the genre, or product in marketing terms, changes the price and how well the game may be received on Steam.
+
+# Purpose
+
+Steam is one of the largest online marketplaces for PC games offering over 100,000 games on the platform. Steam game catalogue is massive, meaning that the ownership of a game is not necessarily indicative of its quality or enjoyment, more so, the game has been buried. The purpose of this project is to see how games perform on steam by analyzing the platform itself, looking to see if the product (genre) affects ownership, then seeing if price expectations change between genres. What follows is an organized approach to the analysis:
+
+1.  What does Steam look like as a Market place
+2.  How much does the product/genre matter concerning game ownership?
+3.  Are there different price expectations between Genres?
+
+Using this data the hope is to create a presentation, find inspiration, and most importantly, present the data in a way that is readable and understandable. With the help of R Studio, the goal is to evaluate whether understanding the 4Ps of marketing can help developers increase ownership of their game on Steam. To do this, Steam’s marketplace will be analyzed from the perspective of a developer looking to post a Simulation game, by analyzing the top genres and popular games, and discovering how much place, product, and price matter on the platform.
+
+# Data
+
+## Dictionary
+
+| Variable Name | What the Variable Represents | Numerical or Categorical? |
+|------------------------------------|----------------------------------------------|------------------|
+| AppID | App ID is a unique ID that enables Steam to Differentiate one game from another despite its name | Numerical |
+| Name | The name of the game | Categorical |
+| Estimated.owners | The estimated number of people who own the game. Gives a range | Categorical |
+| Release.date | The date the game released | Categorical |
+| Price | The base price of the game | Categorical |
+| Supported.languages | Details the languages that are supported by the game | Categorical |
+| User.score | Steam's way of summarizing player recommendations. It is a Percentage calculated by finding the number of positive reviews then dividing by total reviews | Numerical |
+| Positive | Number of positive reviews | Numerical |
+| Negative | Number of negative reviews | Numerical |
+| Achievements | Number of achievements available in the game | Numerical |
+| Recommendations | Number of recommendations | Numerical |
+| Average.playtime.two weeks | Average play time over two week measured in hours | Numerical |
+| Average.playtime.forever | Average total playtime | Numerical |
+| Median.playtime.two.weeks | Median playtime over two weeks (less susceptible to outliers) | Numerical |
+| Median.playtime.forever | Median total playtime | Numerical |
+| Developers | The developers of the game | Categorical |
+| Publishers | The publishers of the game | Categorical |
+| Categories | Denotes what kind of game it is (online, single-player, ect.) | Categorical |
+| Genres | Denotes the multiple genres of the game | Categorical |
+| Tags | More specific than 'Genres' (clicker, agriculture, sandbox) | Categorical |
+
+## Missing/NA/Null Variables
+
+The Data was scraped from Steam meaning there are many values that have odd formatting. Originally, it was believed this was an issue with how the data was gathered and that those values were This being said, after some research it was found that the symbols in the “Name” column was a form of Unicode and the text is perfectly decipherable. This occurs as a result of using characters from different languages. Changing those values into Unicode is the computer’s way of representing characters from almost all of the world written languages. In essence, the Unicode present in the data is not a result of bad scraping. This being said, a few NA values were found, but these values have little affect on the calculations and have posed little problems outside of the user score correlation analysis. This column showed some major NA values; however, this would only be a problem if it was decided to look outside of the project scope.
+
+### Methodology for Cleaning the data
+
+The data is rather tidy with the exception of the Genres Column. The Genres column contains a list of tagged genres rather than a single value. I decided to leave the Genres column alone because much of the analysis will rely on that single column. If the values were to be separated, the amount of columns per row would be different due to Steam's allowance of multiple genre tags. In consideration of needing to keep the data together, the grepl() function will be a big help the focus is narrowed to specific genres within the column. The function allows R to find specific strings within columns rather than splitting the genres column as will be done to find the most common genres on Steam.
+
+Though the data is very consistent, there are a few difficulties in places where text is formatted, particularly when it comes to games with special characters or formatting not available on the typical English keyboard. This is only a minor convenience because the text can still be decoded. Additionally, there are a few columns that could be better utilized if they were numerical values. The main offender is the estimated owner’s column. To fix this issue, the values will be separated into min and max then the average of both will be mutated into a new column which most of the analysis will be completed with.
+
+```{r}
+#4a. Read in data
+
+OG_Steam <- read.csv("Steam_Games.csv", fill = TRUE)
+
+OG_Steam
+
+```
+
+```{r}
+#4b.1 show a summary of the data and the first few observations
+
+#Summary
+summary(OG_Steam)
+
+# This needed to be shown in a new window
+head(OG_Steam)
+```
+
+```{r}
+#4b.2 First few observations
+head(OG_Steam)
+
+```
+
+```{r}
+#4c. Create a new data set from the variables that are of interest
+
+Steam_Games_Pre <- OG_Steam %>%
+  select(AppID, Name, Release.date, Estimated.owners, Price, Supported.languages, User.score, Positive, Negative, Achievements, Recommendations, Average.playtime.two.weeks, Average.playtime.forever, Median.playtime.two.weeks, Median.playtime.forever, Developers, Publishers, Categories, Genres, Tags)
+
+#Example of how this dataset may be used
+
+Publisher_Price_Summary <- Steam_Games_Pre%>%
+  group_by(Publishers) %>%
+  summarise(Avg_Price = mean(Price)) %>%
+  arrange(-Avg_Price)
+Publisher_Price_Summary
+
+summary(Steam_Games_Pre)
+
+```
+
+```{r}
+#4d. Name the new dataset and write it to a csv file
+
+write.csv(Steam_Games_Pre, "Steam_Games_Cleaned.csv")
+```
+
+# Data Pre-processing
+
+```{r}
+# Read in Data
+Steam_Games <- read.csv("Steam_Games_Cleaned.csv")
+
+Steam_Games
+```
+
+```{r}
+# Get rid of 'X' column from Steam_Games_Cleaned
+
+Steam_Games$X <- NULL
+```
+
+```{r}
+# Find the column names
+colnames(Steam_Games)
+```
+
+### Summary Statistics
+
+```{r}
+# Summary Statistics
+
+summary(Steam_Games_Pre)
+```
+
+Currently the estimated owners column is in a character format meaning it will need to be converted to a numerical datatype.
+
+#### Data Dimensions
+
+```{r}
+# Use dim (outcome is 109780 rows and 20 columns)
+
+dim(Steam_Games)
+```
+
+There are 109780 rows in this data set and 20 columns.
+
+# Data Exploration
+
+### Bar Graph: Player Count
+
+```{r}
+
+# Update data set so min and max estimated players have their own columns
+
+Steam_Games <- Steam_Games %>%
+  separate(
+    col = Estimated.owners,
+    into = c('Min.estimated.owners', 'Max.estimated.owners'),
+    sep = "-",
+  )
+  
+```
+
+```{r}
+#Convert Columns to numerical value
+
+Steam_Games$Max.estimated.owners <- as.numeric(Steam_Games$Max.estimated.owners)
+
+Steam_Games$Min.estimated.owners <- as.numeric(Steam_Games$Min.estimated.owners)
+```
+
+```{r}
+#Convert back to average estimated owners (most likely value)
+
+Steam_Games <- Steam_Games %>%
+  mutate(Owners.avg = (Min.estimated.owners + Max.estimated.owners) / 2)
+
+head(Steam_Games$Owners.avg, 15)
+```
+
+```{r}
+ggplot(data = Steam_Games, aes(x = Owners.avg)) +
+  geom_bar(fill = "cadetblue3", color = "cadetblue") + 
+   labs(
+    title = "Number of Games by Log of Estimated Owners",
+    y = "Number of Games",
+    x = "Estimated Owners"
+   ) +
+   scale_x_log10()
+
+```
+
+#### Graph Description:
+
+The graph shows that an overwhelmingly large amount of games on steam have a small player base. This confirms that a player base of around 1000 players is considered to be about average for smaller game studios on steam regardless of genre.
+
+### Top 8 Most Common Genres on Steam
+
+```{r}
+# Splitting the values from the 'Genres' column
+Genres <- data.frame(
+  Genres = Steam_Games$Genres
+)
+
+Genres_Split <- Genres %>%
+  separate_longer_delim(Genres, delim = ",")
+
+Genres_Split
+
+```
+
+```{r}
+# Find the count for each Genre
+
+    Genres_Count <- Genres_Split %>%
+      count(Genres, sort = TRUE)
+
+# Find top 8 genre
+
+    Top_8_Genres <- Genres_Count %>%
+      slice_head(n = 8)
+    
+# Print top 8
+    
+print(Top_8_Genres)
+```
+
+```{r}
+Top_8_Vec <- c("Indie", "Casual", "Action", "Adventure", "Simulation", "Strategy", "RPG", "Early Access")
+
+Genres_Filter <- Genres_Split %>%
+  filter(Genres_Split == Top_8_Vec)
+
+print(Genres_Filter)
+```
+
+```{r}
+# Summarize genre counts and calculate percentages
+Genres_Filter <- Genres_Filter %>%
+  count(Genres) %>%
+  mutate(Percentage = round((n / sum(n)) * 100, 1))
+
+# Pie chart with percentage labels
+ggplot(Genres_Filter, aes(x = "", y = n, fill = Genres)) +
+  geom_bar(stat = "identity", color = "white") +
+  coord_polar(theta = "y") +
+  geom_text(aes(label = paste0(Percentage, "%")),
+            position = position_stack(vjust = 0.5),
+            color = "white", size = 3.5) +
+  labs(
+    title = "Most Common Genres on Steam (Pie Chart)",
+    x = NULL,
+    y = NULL,
+    fill = "Genre"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right"
+  ) +
+  scale_fill_manual(values = c("cadetblue2","cadetblue3", "cadetblue","cadetblue4","mediumseagreen", "seagreen","green4","darkgreen"))
+```
+
+#### Graph Description:
+
+The above graph shows how many games on steam are categorized under different genres. This graph in particular only shows the top 8 genres due to how many games use these genre tags specifically. The indie genre is the most popular tag. This shows that most games on Steam are made by independent developers. Additionally, it seems that many games use the casual tag.
+
+#### Finding my Preferred Games
+
+The 'Preferred_Games' vector contains games that I find to be enagaging and enjoyable. With the goal of finding which genre I lean towards the most. Every genre is different, Choosing a genre I know the most about will help me identify key aspects that make those games stand out among
+
+```{r}
+# Preferred Games 
+# Check Names (Not checked)
+
+Preferred_Games <- c("Cinnabunny", "Potion Craft: Alchemist Simulator", "Stardew Valley", "Cities: Skylines", "Good Pizza, Great Pizza - Cooking Simulator Game", "Papa's Freezeria Deluxe", "Sticky Business", "Slime Rancher 2", "Albion Online", "Squirreled Away")
+
+#grab games
+
+Favorite_Games <- Steam_Games %>%
+  filter(Name %in% Preferred_Games)
+
+#print favorite games
+Favorite_Games
+```
+
+### Correlation Analysis on top 250 games
+
+```{r}
+# Find the top 250 games in the Steam library
+
+Top_250_Games <- Steam_Games %>%
+  arrange(desc(Owners.avg)) %>%
+  
+  head(250)
+
+correlation_matrix_250 <- Top_250_Games %>%
+  select(
+    Owners.avg, Price, Positive, Negative, 
+         Achievements, Recommendations, 
+         Average.playtime.two.weeks, Average.playtime.forever) %>%
+  mutate(across(everything(), as.numeric)) %>%  # converts all columns to the numeric datatype
+  cor(use = "pairwise.complete.obs")            # handles missing values
+
+correlation_matrix_250
+```
+
+##### Key Correlations and Thoughts
+
+Based on this correlation matrix, I would like to focus on 3 different aspects for further analysis; Owners.avg, player engagement of all kinds (Positive, Negative, and Recommendations), and Price. Owners.avg has the biggest impact on every aspect of the game while player engagement seems to drive how many copies of the game are sold. Though the price column does not seem to have any strong correlations, it is the aspect with the most slightly negative relationships in most aspects while increasing forever playtime.
+
+### Comparison Data Visualisations
+
+#### Top_250 for Comparison
+
+For my next series of analysis I chose to focus on the Top 250 games of each genre and popularity. Because Steam is such a large platform the most common aspect of a genre is not neccesarily the most successful as shown by the player count bar graph.
+
+```{r}
+#Now do the same steps from finding the Top_250_Games to find the 250 most popular games within the simulation genre
+
+#Make a subset:
+
+#Subset of simulation games
+Sim_Games <- Steam_Games[grepl("Simulation", Steam_Games$Genres), ]
+
+
+#Find the top 250 from sim games 
+
+Top_250_Sims <- Sim_Games %>%
+  arrange(desc(Owners.avg)) %>%
+  
+  head(250)
+
+Top_250_Sims
+Top_250_Games
+```
+
+### Playership
+
+#### Grouped Bar chart to compare player bases
+
+```{r}
+# Now that we have our broad sets, Create a grouped bar chart to compare player bases
+
+# Select Columns Sets to include max owners and Name
+Top_250_Games_MO <- Top_250_Games %>%
+  select(Owners.avg, Name)
+Top_250_Sims_MO <- Top_250_Sims %>%
+  select(Owners.avg, Name)
+
+# Convert data to be in the same set
+Top_250_Games_MO$Source <- "General"
+Top_250_Sims_MO$Source <- "Simulations"
+
+Top_Compare_250 <- rbind(Top_250_Games_MO, Top_250_Sims_MO) #rbind takes the two columns and makes the two one
+
+# Summarize the data to get the counts
+summary_data <- Top_Compare_250 %>%
+  group_by(Source) %>%
+  summarise(Count = n()) # n() counts the number of rows in each group
+
+# Create Bins
+Top_Compare_250$Owner_Bins <- cut(Top_Compare_250$Owners.avg, breaks = 20)
+
+# 2. Plot the data using the new bins
+ggplot(Top_Compare_250, aes(x = Owner_Bins, fill = Source)) +
+  geom_bar(position = "dodge", color = "cadetblue4") +
+  labs(
+    title = "Simulation and Top 250 Games Comparison by Estimated Owners",
+    x = "Estimated Owners",
+    y = "Count of Games",
+    fill = "Data Source"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+
+  scale_fill_manual(values = c("cadetblue3", "darkgrey"))
+
+```
+
+##### Graph Description:
+
+The above graph shows that, when compared to the top 250 games on steam, more simulation games are, The wider bars also show an interesting aspect of the simulation genre as a whole.It shows that most of the top 250 games of the simulation genre don't reach the same player counts as the action genre might. Additionally the graph shows that a few games sit at the top of Steam's roster.
+
+#### Scatter Plot - Player Engagement and Game Ownership
+
+Visualization of previous correlation analysis between player engagement and estimated ownership
+
+```{r}
+# create percent positive reviews
+Top_250_Games <- Top_250_Games %>%
+  mutate(Positive_PE = (Positive / (Positive + Negative)))
+
+```
+
+```{r}
+# Making the scatter plot with a log-transformed X-axis
+
+ggplot(data = Top_250_Games, aes(x = Owners.avg, y = Positive_PE)) +
+  geom_point(color = "grey2", alpha = 0.05, size = 2) +
+  # Add the linear trendline using geom_smooth()
+  geom_smooth(method = "lm", se = FALSE, color = "cadetblue4") +
+  scale_x_log10() +
+  labs(title = "Top 250 Games Positive Ratings %",
+       x = "Estimated Owners (Log Scale)",
+       y = "Percent Positive") +
+  theme_minimal()
+```
+
+##### Graph Description
+
+The above graph shows the percent of positive rating given for a game and the estimated owners for that game. The games in this plot are apart of the top 250 games on Steam. Games tend to have a percent positive rating of around 85% with the percentage slightly decreasing as there are less games down the line.
+
+#### Scatter Plot Representing Reviews and Ownership
+
+```{r}
+#Mutate whole dataset
+Steam_Games <- Steam_Games %>%
+  mutate(Positive_PE = (Positive / (Positive + Negative)))
+```
+
+```{r}
+
+# Making the scatter plot with a log-transformed X-axis
+
+ggplot(data = Steam_Games, aes(x = Owners.avg, y = Positive_PE)) +
+  geom_point(color = "mediumseagreen", alpha = 0.05, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkgreen") + # Adds a linear trendline
+  scale_x_log10() +
+  labs(title = "Games Positive Ratings % ",
+       x = "Estimated Owners (Log Scale)",
+       y = "Percent Positive Ratio") +
+  theme_minimal()
+```
+
+##### Graph description
+
+This graph shows a similar trend to the previous graph but instead, it shows a slight increase from 75%. Additionally, as the number of owners increases the variety of ratings becomes more standard. This data is sourced from the whole data set rather than a subset like the previous set.
+
+### Finding the Most Popular Genre
+
+```{r}
+#Finding what percent of top 250 games contain action in their genres column (there are 250 rows in this set)
+
+#In Top_Games_250 use grepl to find all games with then save to Action_Games_from_250
+Action_Games_from_250 <- Top_250_Games[grepl("Action", Top_250_Games$Genres), ]
+
+# Find percent
+Percent_Action = (nrow(Action_Games_from_250)/250)*100
+Percent_Action
+```
+
+##### Code Description:
+
+Based on the Above code, games that use the action tag make up 70.8% of the top 250 games. The data set was ranked by estimated ownership meaning, of the most popular games 70.8% of them fall under the action genre, making action games the most popular genre on Steam by ownership.
+
+#### Finding action games genre top 250
+
+```{r}
+#For the next bit of code involving pie charts, I am finding the top 250 action games so I may compare a very successful genre to the simulation genre.
+
+Top_250_Action <- Steam_Games %>%
+  filter(grepl("Action", Genres)) %>%
+  arrange(desc(Owners.avg)) %>%
+  head(250)
+
+# Print the result
+Top_250_Action
+
+```
+
+##### Code Explanation:
+
+Narrowing my scope I decided to pull the top 250 action games from the Steam Library so I may compare the simulation genre against the most popular genre. Just as with the Simulation genre, games on steam are allowed more than one genre tag meaning if a game is tagged with both the action and simulation tag, the game will be contained in both sets.
+
+### Graph: Price Pie Charts
+
+```{r}
+# 1. Define the data (numeric vector of counts)
+ #In Top_Games_250 use grepl to find all games with then save to Action_Games_from_250
+F2P_Games_from_250 <- Top_250_Games[grepl("Free to Play", Top_250_Games$Genres), ]
+
+# 2. Find percentages
+Percent_F2P = round(((nrow(F2P_Games_from_250)/250)*100),2)
+Not_Free = -Percent_F2P + 100
+
+# 3. Making the counts variable
+counts <- c(Percent_F2P, Not_Free)
+
+# 2. Define the labels for the slices (character vector)
+labels <- c("Free to Play", "Not Free to Play")
+
+# 3. Define the colors
+colors <- c("gray", "darkgray")
+
+# 4. Generate the pie chart using the 'pie()' function
+F2P_Pie_250 <- pie(
+  x = counts,         # The numeric values
+  labels = labels,    # The text labels for each slice
+  main = "Percent Free to Play (Top 250)", # Main title       
+  col = colors # Colors for the slices
+) 
+
+#Make Sim Free to play pie chart
+
+# 1. Define the data (numeric vector of counts)
+ #In Top_Games_250 use grepl to find all games with then save to Action_Games_from_250
+F2P_Games_from_Sim <- Top_250_Sims[grepl("Free to Play", Top_250_Sims$Genres), ]
+
+# 2. Find percentages
+Percent_F2P2 = round(((nrow(F2P_Games_from_Sim)/250)*100),2)
+Not_Free2 = -Percent_F2P2 + 100
+
+# 3. Making the counts variable
+counts <- c(Percent_F2P2, Not_Free2)
+
+# 2. Define the labels for the slices (character vector)
+labels <- c("Free to Play", "Not Free to Play")
+
+# 3. Define the colors
+colors <- c("cadetblue3", "cadetblue")
+
+# 4. Generate the pie chart using the 'pie()' function
+F2P_Pie_Sims <- pie(
+  x = counts,         # The numeric values
+  labels = labels,    # The text labels for each slice
+  main = "Percent Free to Play (Top Sims)", # Main title       
+  col = colors # Colors for the slices
+) 
+
+F2P_Pie_250
+
+F2P_Pie_Sims
+
+#Make Action Free to play pie chart
+
+# 1. Define the data (numeric vector of counts)
+ #In Top_Games_250 use grepl to find all games with then save to Action_Games_from_250
+F2P_Games_from_Action <- Top_250_Action[grepl("Free to Play", Top_250_Action$Genres), ]
+
+# 2. Find percentages
+Percent_F2P3 = round(((nrow(F2P_Games_from_Action)/250)*100),2)
+Not_Free3 = -Percent_F2P3 + 100
+
+# 3. Making the counts variable
+counts <- c(Percent_F2P3, Not_Free3)
+
+# 2. Define the labels for the slices (character vector)
+labels <- c("Free to Play", "Not Free to Play")
+
+# 3. Define the colors
+colors <- c("mediumseagreen", "darkgreen")
+
+# 4. Generate the pie chart using the 'pie()' function
+F2P_Pie_Action <- pie(
+  x = counts,         # The numeric values
+  labels = labels,    # The text labels for each slice
+  main = "Percent Free to Play (Top Action)", # Main title       
+  col = colors # Colors for the slices
+) 
+
+F2P_Pie_250
+
+F2P_Pie_Sims
+
+F2P_Pie_Action
+```
+
+##### Graph Descriptions:
+
+Despite lower priced games being more accessible, the majority of games in each respective catagory are roughly 4 times more likely to not be free to play. Simulation games are the least likely to be free to play
+
+###### Exact Percents for above graph
+
+```{r}
+print("Percent Free (250, Sim, Action) ")
+
+Percent_F2P
+Percent_F2P2
+Percent_F2P3
+
+print("Percent Not Free (250, Sim, Action) ")
+
+Not_Free
+Not_Free2
+Not_Free3
+```
+
+###### Code Description
+
+The above code shows the exact percentages for each of the pie charts.
+
+### Price Comparison
+
+```{r}
+price_df <- data.frame(
+  Games_Price = Top_250_Games$Price,
+  Sims_Price = Top_250_Sims$Price,
+  Action_Price = Top_250_Action$Price
+)
+
+summary(price_df)
+
+```
+
+##### Code Explanation:
+
+This code provides numerical information about the price of each variable.
+
+#### Price Box and Whisker Plot
+
+```{r}
+# Convert the data frame to a long format
+price_long <- pivot_longer(price_df, 
+                                  cols = c(Games_Price, Sims_Price, Action_Price), 
+                                  names_to = "Game_Type", 
+                                  values_to = "Price")
+
+# Create the box and whisker plot using ggplot2
+ggplot(price_long, aes(x = Game_Type, y = Price, fill = Game_Type)) +
+  geom_boxplot() +
+  labs(title = "Price Distribution Across Game Types",
+       y = "Price",
+       x = "Game Type") +
+  scale_fill_manual(values = c("mediumseagreen", "grey", "cadetblue3")) +
+  theme_minimal() +
+  stat_summary(fun = "median", 
+               geom = "text", 
+               aes(label = round(after_stat(y), 2)), # Rounds the median value (2 decimals for currency)
+               vjust = -0.5, # Adjusts vertical position to be slightly above the median line
+               color = "white")
+```
+
+##### Graph Description:
+
+The graph shows that simulation games tend to be priced higher than other popular games. However, the most expensive games are floating around the most popular games.
+
+```{r}
+
+# I found it interesting that the action and top games had a different max price by such a large margin and so I wanted to see what games cost the most in the top 250.
+
+Most_Expensive_250 <- Top_250_Games[Top_250_Games$Price == max(price_df$Games_Price), ]
+
+print(Most_Expensive_250)
+
+```
+
+##### Code Explanation:
+
+'Starfield' is a game by a major studio, Bethesda, and is an open world space simulation with realistic graphics that took around 7 years to develop.
+
+# Results
+
+## Description of Analysis
+
+Regarding the first main question, the first P of the 4P’s is place. In this case, the place is Steam. The analysis will begin by looking at the distribution of genre tags among all games on Steam then counting games by their ownership. Estimated ownership is the best metric for success in my data set as there is no set quality value as it is a very complex subject. Using this variable, I decided to use it to look into the second P, product. In this case, the product is the genre because genres tend to have similarities and different target audiences making it a good measure for separating one product from another. For this question, a comparison of the estimated owners will be completed.
+
+The third P, price, was an interesting aspect. First, the percentage of free to play games among the top 250, top simulation games, and top action games will be compared to each other to decide if the developer in the simulation genre could expect that free to play games in the Sims genre will perform better. After this, the prices for each game type will be analyzed through the use of a box and whisker plot. Despite the fourth P, promotion being Important, it was decided that the fourth P will not be covered as directly as the other three aspects. Funds spent on promotion is not an available value with this dataset, instead the other 3 will be the focus and this aspect may be considered more holistically with the assumption that game ownership in itself is a form of promotion.
+
+## Reasonsing behind methods of choice
+
+The type of data analysis that was chosen to be the focus is bivariate. This method was chosen because most of the analysis surrounds comparison between two variables. It is believed that the answer to how necessary the 4P’s marketing method is on Steam can be measured by looking at estimated game ownership. This is the case because games are supported by their communities and games with strong communities tend to be both recommended by their players to other potential players and played on streaming sites which build interest in the game and build a strong community.
+
+Through the analysis process it is important to keep in mind that different genres cater to different interests that fill niches, meaning there is no perfect game. In completing the analysis, the goal is to understand what Steam looks like for the majority of games on the platform and how expectations differ between genres regarding price and ownership. To find out what makes a game successful I first needed to run a correlation analysis to confirm that a strong community is the driving force behind an increase in most variables, this is what led me to sort by Ownership. The purpose of choosing the action genre to use as a comparison in addition to the top 250 games was to learn about what the majority of consumers on Steam prefer and using the variables as a basis for comparison. Using this method, the plan is to see if there are differences between genres on steam, following the Product quarter of the 4P’s.
+
+## Overall Findings
+
+The simulation genre as a whole is a popular genre that is full of aspects that make the genre interesting to different types of players. These games often include a high level of player freedom meaning such games can be more expensive to produce. In this case, among the top 250 simulation games, the majority of those games have an average price of \$14.99 with around only 20% of the games being free to play. With this in mind, simulation games tend to be complex and have long development times, driving prices up, this being said, it was found that games that are in the top 250 still do not reach Nintendo's typical price with the most expensive game in the top 250 being 69.99 and ranking higher than only approximately 60% of the top games despite its high price tag.
+
+There is a strong correlation between player engagement and the ownership of a game. Unexpectedly, the action genre and simulation games tend to have similar ownership. This was surprising to me because I postulated that players would spend time on games with more story-based aspects but what I found is that players will put time into what they are interested in whether the game is full of combat or a slow-paced farming game. Therefore, if a developer would like to make a game, building a strong community is the key to increasing ownership.
+
+# Conclusions
+
+The Steam Platform as a whole is full of a wide variety of games that tend to lean closer to the indie developer as the platform is used to publish games rather than present a selected variety of games like the Nintendo store. The majority of games on this platform tend to see an estimated 1000 copies sold, however a few games reach estimated owners in the 10 millions. Steam responds best to the action genre and there are significant differences between the action and simulation genres. If a developer were looking to distribute a simulation game, the developer can expect that a successful Sim game based on game ownership would be different from an action game.
+
+Regarding price, the data shows that the average price for a genre differs with action games tending to be priced around the \$10 range and simulation games being priced around \$14.99. This means that a game in the simulation genre being priced higher than the average popular game price is will not be out of the ordinary. Additionally, a game being free to play does not always lead to higher ownership. Overall, based on the percentage of positive reviews for games being rather consistent across all levels of ownership, it really is about being able to build a strong community and though marketing can be a really great boost a game will tend to make it to its intended audience, it really just depends on what level of ownership the developer is aiming for that changes the amount of effort and time that should be put into marketing because it is ultimately a good game is not measured only by its ownership.
+
+Limitations of the data set would be the lack of total game revenue and a definite measure for the quality of a game. Additionally, which market the data comes from is not stated. If this variable were to be available, it would be interesting to complete an analysis comparing Steam's stores for each country. An example of how this data may be used would be to compare how genres perform in different countries.
+
+# References
+
+Going Indie Biz. (2024, July 27). *Steam marketing expert reveals algorithm secrets* [Video]. YouTube. <https://www.youtube.com/watch?v=CfSThW3GwvM>
+
+Summer. (2025, March 17). *The Four PS of Marketing: Definition, Role, and Questions to consider - Mageplaza*. The Most Feature-rich Extension Developer for Magento 2 - Adobe Commerce. <https://www.mageplaza.com/blog/4-ps-of-marketing.html>
+
+FronkonGames. *"Steam Games Dataset."* *Kaggle*, 24 Aug. 2023, www.kaggle.com/datasets/fronkongames/steam-games-dataset.
+
+"Simulation video game." *Wikipedia*, 3 Nov. 2024, en.wikipedia.org/wiki/Simulation_video_game.
+
+"Starfield (video game)." *Wikipedia*, 6 Nov. 2024, en.wikipedia.org/wiki/Starfield\_(video_game).
+
+"Steam Charts: Top 100." *Steam*, store.steampowered.com/charts/. Accessed 9 Nov. 2025.
+
+"Store Home." *Steam*, store.steampowered.com/games. Accessed 9 Nov. 2025.
+
+"Top questions." *Stack Overflow*, stackoverflow.com/questions. Accessed 9 Nov. 2025.
+
+"Why Are Games So Expensive Now? Factors Driving Up Game Prices." *DHgate Smart Blog*, smart.dhgate.com/why-are-games-so-expensive-now-factors-driving-up-game-prices/. Accessed 9 Nov. 2025.

@@ -1,0 +1,4 @@
+Link to data:
+https://www.kaggle.com/datasets/fronkongames/steam-games-dataset
+
+The games dataset contain a detailed catalog of all games on steam at the time of creation. This dataset has 110326 rows and 39 columns. There are 15 integer variables, 15 string variables, 3 Boolean variables, and 6 data types labeled as other.
